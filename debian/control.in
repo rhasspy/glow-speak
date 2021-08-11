@@ -1,0 +1,8 @@
+Package: glow-speak
+Version: @VERSION@
+Section: utils
+Priority: optional
+Depends: libespeak-ng1
+Architecture: @DEBIAN_ARCH@
+Maintainer: Michael Hansen
+Description: Neural text to speech system using eSpeak as a frontend

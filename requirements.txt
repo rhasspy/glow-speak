@@ -1,0 +1,4 @@
+espeak-phonemizer~=1.0.0
+gruut-ipa~=0.10.0
+onnxruntime>=1.6.0
+phonemes2ids~=1.0.0
