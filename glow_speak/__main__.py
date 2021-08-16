@@ -88,6 +88,11 @@ def main():
         help="Format string used for file names with --output-dir (receives {time} for timestamp and {text} for filtered transcription)",
     )
     parser.add_argument(
+        "--text-is-phoneme-ids",
+        action="store_true",
+        help="Input 'text' is actually whitespace-separated phoneme ids (see phonemes.txt)",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Print DEBUG messages to the console"
     )
     args = parser.parse_args()
@@ -238,13 +243,19 @@ def main():
                 continue
 
             _LOGGER.debug(text)
-            text_ids = text_to_ids(
-                text=text,
-                phonemizer=phonemizer,
-                phoneme_to_id=phoneme_to_id,
-                phoneme_map=phoneme_map,
-                missing_func=phoneme_guesser.guess_ids,
-            )
+
+            if args.text_is_phoneme_ids:
+                # Text *is* phoneme ids already
+                text_ids = np.array([int(n) for n in text.split()], dtype=np.int64)
+            else:
+                # Text to phoneme ids
+                text_ids = text_to_ids(
+                    text=text,
+                    phonemizer=phonemizer,
+                    phoneme_to_id=phoneme_to_id,
+                    phoneme_map=phoneme_map,
+                    missing_func=phoneme_guesser.guess_ids,
+                )
 
             mels_start_time = time.perf_counter()
             mels = ids_to_mels(
