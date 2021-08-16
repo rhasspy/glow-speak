@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import shlex
+import string
 import subprocess
 import sys
 import threading
 import time
+import typing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
@@ -74,12 +76,21 @@ def main():
         help="Process text only after encountering a blank line",
     )
     parser.add_argument(
+        "--output-file", help="Write entire WAV output to a file (default: stdout)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        help="Write WAV file(s) to a directory (one for each input line, see --output-naming)",
+    )
+    parser.add_argument(
+        "--output-naming",
+        default="{time}_{text:.100s}",
+        help="Format string used for file names with --output-dir (receives {time} for timestamp and {text} for filtered transcription)",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Print DEBUG messages to the console"
     )
     args = parser.parse_args()
-
-    args.tts = Path(args.tts)
-    args.vocoder = Path(args.vocoder)
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -88,12 +99,27 @@ def main():
 
     _LOGGER.debug(args)
 
+    args.tts = Path(args.tts)
+    args.vocoder = Path(args.vocoder)
+
+    if args.output_dir:
+        args.output_dir = Path(args.output_dir)
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Test format string
+        args.output_naming.format(time=0, text="Sample text")
+
+    if args.output_file:
+        args.output_file = Path(args.output_file)
+        args.output_file.parent.mkdir(parents=True, exist_ok=True)
+
     # -------------------------------------------------------------------------
 
     wav_queue = None
     play_thread = None
 
     if args.play:
+        # Execute external command to play audio in a separate thread (from a queue)
         play_command = shlex.split(args.play)
         wav_queue = Queue(maxsize=args.queue_lines)
 
@@ -184,6 +210,8 @@ def main():
         # sentences are broken
         # up across multiple
         # lines.
+        #
+        # And paragraphs separate text instead.
         def process_on_blank_line(lines):
             text = ""
             for line in lines:
@@ -198,6 +226,9 @@ def main():
                 text += " " + line
 
         texts = process_on_blank_line(texts)
+
+    # -------------------------------------------------------------------------
+    # Main loop
 
     audios = []
     try:
@@ -245,7 +276,9 @@ def main():
                 audio_sec,
             )
 
-            if wav_queue is not None:
+            wav_bytes: typing.Optional[bytes] = None
+
+            if (wav_queue is not None) or args.output_dir:
                 wav_bytes = audio_to_wav(
                     audio=audio,
                     sample_rate=sample_rate,
@@ -253,9 +286,29 @@ def main():
                     sample_bytes=sample_bytes,
                 )
 
+            if wav_queue is not None:
+                # Audio will play
+                assert wav_bytes is not None
                 wav_queue.put(wav_bytes)
+
+            if args.output_dir:
+                # Output WAV(s) to directory
+                assert wav_bytes is not None
+
+                text_filtered = text.strip().replace(" ", "_")
+                text_filtered = text_filtered.translate(
+                    str.maketrans("", "", string.punctuation.replace("_", ""))
+                )
+                output_name = (
+                    args.output_naming.format(time=int(time.time()), text=text_filtered)
+                    + ".wav"
+                )
+
+                output_path = args.output_dir / output_name
+                output_path.write_bytes(wav_bytes)
+                _LOGGER.debug("Write %s byte(s) to %s", len(wav_bytes), output_path)
             else:
-                # Combine into single WAV
+                # Combine into single WAV for output later
                 audios.append(audio)
     except KeyboardInterrupt:
         pass
@@ -275,7 +328,13 @@ def main():
                 sample_bytes=sample_bytes,
             )
 
-            sys.stdout.buffer.write(wav_bytes)
+            if args.output_file:
+                args.output_file.write_bytes(wav_bytes)
+                _LOGGER.debug(
+                    "Wrote %s byte(s) to %s", len(wav_bytes), args.output_file
+                )
+            else:
+                sys.stdout.buffer.write(wav_bytes)
 
 
 # -----------------------------------------------------------------------------
