@@ -6,4 +6,4 @@ __pycache__/
 /dist/
 /download/
 *.onnx
-!glow_speak/vocoders/*.onnx
+!glow_speak/vocoders/**/*.onnx
