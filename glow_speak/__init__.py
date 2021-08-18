@@ -3,6 +3,8 @@ import io
 import logging
 import typing
 import wave
+from enum import Enum
+from pathlib import Path
 
 import numpy as np
 
@@ -22,6 +24,8 @@ from .audio import (
 
 PAD = "_"
 
+_DIR = Path(__file__).parent
+_VOCODER_DIR = _DIR / "vocoders"
 _LOGGER = logging.getLogger("glow-speak")
 
 # -----------------------------------------------------------------------------
@@ -31,7 +35,7 @@ class PhonemeGuesser:
     def __init__(
         self,
         phoneme_to_id: typing.Mapping[str, int],
-        phoneme_map: typing.Optional[typing.Mapping[str, str]] = None,
+        phoneme_map: typing.Optional[typing.Mapping[str, typing.List[str]]] = None,
     ):
         self.phoneme_to_id = phoneme_to_id
         self.phoneme_map = phoneme_map or {}
@@ -49,7 +53,12 @@ class PhonemeGuesser:
         """Use vowel/consonant distances to guess approximate phonemes."""
         best_ids = self.guessed_ids.get(phoneme)
         if best_ids is None:
-            best_phonemes = [p.text for p in guess_phonemes(phoneme, self.to_phonemes)]
+            best_phonemes = [
+                p.text
+                for p in typing.cast(
+                    typing.List[Phoneme], guess_phonemes(phoneme, self.to_phonemes)
+                )
+            ]
             _LOGGER.debug("Guessed %s -> %s", phoneme, best_phonemes)
 
             best_ids = []
@@ -79,7 +88,7 @@ def text_to_ids(
     text: str,
     phonemizer: Phonemizer,
     phoneme_to_id: typing.Mapping[str, int],
-    phoneme_map: typing.Optional[typing.Mapping[str, str]] = None,
+    phoneme_map: typing.Optional[typing.Mapping[str, typing.Sequence[str]]] = None,
     phoneme_separator: str = "_",
     missing_func: typing.Optional[
         typing.Callable[[str], typing.Optional[typing.List[int]]]
@@ -181,3 +190,25 @@ def init_denoiser(vocoder_model, mel_channels: int = 80) -> np.ndarray:
     bias_spec = bias_spec[:, :, 0][:, :, None]
 
     return bias_spec
+
+
+# -----------------------------------------------------------------------------
+
+
+class VocoderQuality(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+# quality -> vocoder name
+_VOCODERS: typing.Dict[VocoderQuality, str] = {
+    VocoderQuality.HIGH: "hifi-gan_high",
+    VocoderQuality.MEDIUM: "hifi-gan_medium",
+    VocoderQuality.LOW: "hifi-gan_low",
+}
+
+
+def get_vocoder_dir(quality: VocoderQuality) -> Path:
+    """Get path to vocoder directory"""
+    return _VOCODER_DIR / _VOCODERS[quality]

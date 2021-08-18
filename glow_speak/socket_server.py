@@ -27,7 +27,7 @@ from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
 from . import PhonemeGuesser, ids_to_mels, init_denoiser, mels_to_audio, text_to_ids
 
-_LOGGER = logging.getLogger("glow_speak.server")
+_LOGGER = logging.getLogger("glow_speak.socket_server")
 
 
 # -----------------------------------------------------------------------------

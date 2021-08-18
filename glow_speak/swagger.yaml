@@ -1,0 +1,161 @@
+openapi: "3.0.0"
+info:
+  title: 'Glow Speak'
+  version: '1.0'
+  description: 'Glow Speak Text to Speech API'
+schemes:
+  - http
+servers:
+  - url: http://localhost:5000
+    description: Local server
+paths:
+  /api/tts:
+    get:
+      summary: 'Speak text to WAV'
+      parameters:
+        - in: query
+          name: voice
+          required: true
+          description: 'Voice name'
+          schema:
+            type: string
+            example: 'en-us_mary_ann'
+        - in: query
+          name: text
+          required: true
+          description: 'Text to speak'
+          schema:
+            type: string
+            example: 'Welcome to the world of speech synthesis!'
+        - in: query
+          name: quality
+          description: 'Vocoder quality'
+          schema:
+            type: string
+            enum: ['high', 'medium', 'low']
+            example: 'high'
+        - in: query
+          name: denoiserStrength
+          description: 'Strength of vocoder denoiser (0-1, 0 is disabled)'
+          schema:
+            type: number
+            example: 0.002
+        - in: query
+          name: noiseScale
+          description: 'Volatility of speaker (0-1, default: 0.333)'
+          schema:
+            type: number
+            example: 0.333
+        - in: query
+          name: lengthScale
+          description: 'Speed of speaker (default: 1.0, faster &lt; 1 &lt; slower)'
+          schema:
+            type: number
+            example: 0.85
+        - in: query
+          name: textLanguage
+          description: 'Language (eSpeak voice) of text (empty to use voice language)'
+          schema:
+            type: string
+        - in: query
+          name: noCache
+          description: 'Disable WAV cache lookup'
+          schema:
+            type: boolean
+            example: false
+      produces:
+        - audio/wav
+      responses:
+        '200':
+          description: audio
+          schema:
+            type: binary
+    post:
+      summary: 'Speak text to WAV'
+      requestBody:
+        required: true
+        description: 'Text to speak'
+        content:
+          text/plain:
+            schema:
+              type: string
+              example: 'Welcome to the world of speech synthesis!'
+      parameters:
+        - in: query
+          name: voice
+          required: true
+          description: 'Voice name'
+          schema:
+            type: string
+            example: 'en-us_mary_ann'
+        - in: query
+          name: quality
+          description: 'Vocoder quality'
+          schema:
+            type: string
+            enum: ['high', 'medium', 'low']
+            example: 'high'
+        - in: query
+          name: denoiserStrength
+          description: 'Strength of vocoder denoiser (0-1, 0 is disabled)'
+          schema:
+            type: number
+            example: 0.002
+        - in: query
+          name: noiseScale
+          description: 'Volatility of speaker (0-1, default: 0.333)'
+          schema:
+            type: number
+            example: 0.333
+        - in: query
+          name: lengthScale
+          description: 'Speed of speaker (default: 1.0, faster &lt; 1 &lt; slower)'
+          schema:
+            type: number
+            example: 0.85
+        - in: query
+          name: textLanguage
+          description: 'Language (eSpeak voice) of text (empty to use voice language)'
+          schema:
+            type: string
+        - in: query
+          name: noCache
+          description: 'Disable WAV cache lookup'
+          schema:
+            type: boolean
+            example: false
+      produces:
+        - audio/wav
+      responses:
+        '200':
+          description: audio
+          schema:
+            type: binary
+  /api/voices:
+    get:
+      summary: 'Get available voices'
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: voices
+          schema:
+            type: object
+  /api/phonemes:
+    get:
+      summary: 'Get phonemes for voice'
+      parameters:
+        - in: query
+          name: voice
+          required: true
+          description: 'Voice name'
+          schema:
+            type: string
+            example: 'en-us_mary_ann'
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: phonemes
+          schema:
+            type: object

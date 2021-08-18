@@ -22,7 +22,9 @@ from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
 from . import (
     PhonemeGuesser,
+    VocoderQuality,
     audio_to_wav,
+    get_vocoder_dir,
     ids_to_mels,
     init_denoiser,
     mels_to_audio,
@@ -40,10 +42,16 @@ def main():
     parser.add_argument(
         "text", nargs="*", help="Text to convert to speech (default: stdin)"
     )
-    parser.add_argument("-v", "--voice", required=True, help="espeak-ng voice")
+    parser.add_argument("-v", "--voice", required=False, help="espeak-ng voice")
     parser.add_argument("--tts", required=True, help="Path to TTS model directory")
     parser.add_argument(
-        "--vocoder", required=True, help="Path to vocoder model directory"
+        "--quality",
+        default="high",
+        choices=[v for v in VocoderQuality],
+        help="Quality of vocoder (default: high)",
+    )
+    parser.add_argument(
+        "--vocoder", help="Path to vocoder model directory (default: hifi-gan)"
     )
     parser.add_argument(
         "--denoiser",
@@ -105,7 +113,13 @@ def main():
     _LOGGER.debug(args)
 
     args.tts = Path(args.tts)
-    args.vocoder = Path(args.vocoder)
+
+    if args.vocoder:
+        # User-supplied vocoder path (must have generator.onnx)
+        args.vocoder = Path(args.vocoder)
+    else:
+        # Use built-in hifi-gan
+        args.vocoder = get_vocoder_dir(args.quality)
 
     if args.output_dir:
         args.output_dir = Path(args.output_dir)
@@ -162,6 +176,13 @@ def main():
 
     tts = tts_future.result()
     _LOGGER.debug("Loaded TTS model from %s", args.tts)
+
+    if not args.voice:
+        lang_path = args.tts / "LANGUAGE"
+        assert (
+            lang_path.is_file()
+        ), "Missing --voice or LANGUAGE file in voice directory"
+        args.voice = lang_path.read_text().strip()
 
     vocoder = vocoder_future.result()
     _LOGGER.debug("Loaded vocoder model from %s", args.vocoder)
