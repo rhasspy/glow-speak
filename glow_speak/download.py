@@ -177,5 +177,26 @@ def main():
 
 # -----------------------------------------------------------------------------
 
+
+def list_voices(voices_dir: typing.Optional[typing.Union[str, Path]] = None):
+    """List available voices"""
+    downloaded = "[downloaded]"
+    empty = "(missing)   "
+
+    voices = set(LANG_VOICES.values())
+    voices.update(OTHER_VOICES)
+
+    for voice in sorted(voices):
+        maybe_voice_dir = find_voice(voice, voices_dir=voices_dir)
+
+        if maybe_voice_dir is None:
+            print(empty, voice, sep="\t")
+        else:
+            print(downloaded, voice, sep="\t")
+
+
+# -----------------------------------------------------------------------------
+
+
 if __name__ == "__main__":
     main()

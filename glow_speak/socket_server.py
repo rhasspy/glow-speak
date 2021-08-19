@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import socket
+import sys
 import tempfile
 import time
 import typing
@@ -25,7 +26,16 @@ import onnxruntime
 from espeak_phonemizer import Phonemizer
 from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
-from . import PhonemeGuesser, ids_to_mels, init_denoiser, mels_to_audio, text_to_ids
+from . import (
+    PhonemeGuesser,
+    get_vocoder_dir,
+    ids_to_mels,
+    init_denoiser,
+    mels_to_audio,
+    text_to_ids,
+)
+from .const import VocoderQuality
+from .download import find_voice, list_voices
 
 _LOGGER = logging.getLogger("glow_speak.socket_server")
 
@@ -35,11 +45,20 @@ _LOGGER = logging.getLogger("glow_speak.socket_server")
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--voice", required=True, help="espeak-ng voice")
-    parser.add_argument("--tts", required=True, help="Path to TTS model directory")
+    parser.add_argument("-v", "--voice", help="Name of voice or language")
     parser.add_argument(
-        "--vocoder", required=True, help="Path to vocoder model directory"
+        "--voices-dir",
+        help="Directory with voices (default: $HOME/.local/share/glow-speak/voices)",
     )
+    parser.add_argument("--tts", help="Path to TTS model directory")
+    parser.add_argument(
+        "-q",
+        "--quality",
+        default="high",
+        choices=list(VocoderQuality),
+        help="Quality of vocoder (default: high)",
+    )
+    parser.add_argument("--vocoder", help="Path to vocoder model directory")
     parser.add_argument("--socket", required=True, help="Path to Unix domain socket")
     parser.add_argument(
         "--cache-dir", help="Set directory for WAV cache (default: use tempfile)"
@@ -63,6 +82,10 @@ def main():
         help="Length scale (default: 1.0, GlowTTS only)",
     )
     parser.add_argument(
+        "--text-language",
+        help="eSpeak voice for input text (if different than voice language)",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Print DEBUG messages to the console"
     )
     args = parser.parse_args()
@@ -74,9 +97,6 @@ def main():
 
     _LOGGER.debug(args)
 
-    args.tts = Path(args.tts)
-    args.vocoder = Path(args.vocoder)
-
     # Unix domain socket
     args.socket = Path(args.socket)
 
@@ -84,6 +104,26 @@ def main():
         args.socket.unlink()
     except FileNotFoundError:
         pass
+
+    if args.tts:
+        # Directory with voice (must have generator.onnx)
+        args.tts = Path(args.tts)
+    else:
+        if not args.voice:
+            # List voices and exit
+            print("Missing --voice", file=sys.stderr)
+            list_voices(args.voices_dir)
+            return
+
+        args.tts = find_voice(args.voice, voices_dir=args.voices_dir)
+        assert args.tts is not None, f"Voice not found: {args.voice}"
+
+    if args.vocoder:
+        # User-supplied vocoder path (must have generator.onnx)
+        args.vocoder = Path(args.vocoder)
+    else:
+        # Use built-in hifi-gan
+        args.vocoder = get_vocoder_dir(args.quality)
 
     # Load TTS/vocoder models in parallel
     sess_options = onnxruntime.SessionOptions()
@@ -102,6 +142,15 @@ def main():
 
     tts = tts_future.result()
     _LOGGER.debug("Loaded TTS model from %s", args.tts)
+
+    if not args.text_language:
+        lang_path = args.tts / "LANGUAGE"
+        assert (
+            lang_path.is_file()
+        ), "Missing --voice or LANGUAGE file in voice directory"
+
+        args.text_language = lang_path.read_text().strip()
+        _LOGGER.debug("Text language: %s", args.text_language)
 
     vocoder = vocoder_future.result()
     _LOGGER.debug("Loaded vocoder model from %s", args.vocoder)
@@ -134,7 +183,7 @@ def main():
     phoneme_guesser = PhonemeGuesser(phoneme_to_id, phoneme_map)
 
     # Initialize eSpeak phonemizer
-    phonemizer = Phonemizer(default_voice=args.voice)
+    phonemizer = Phonemizer(default_voice=args.text_language)
     print("Ready")
 
     # text -> WAV path
@@ -240,6 +289,8 @@ def main():
                         print(wav_path, file=conn_file, flush=True)
             except Exception:
                 _LOGGER.exception("main")
+            except KeyboardInterrupt:
+                return
 
 
 # -----------------------------------------------------------------------------

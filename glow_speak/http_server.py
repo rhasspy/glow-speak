@@ -46,6 +46,7 @@ from . import (
     mels_to_audio,
     text_to_ids,
 )
+from .download import LANG_VOICES, OTHER_VOICES, find_voice
 
 _MISSING = object()
 
@@ -60,7 +61,8 @@ _LOOP = asyncio.get_event_loop()
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--tts-dir", required=True, help="Directory with TTS models (one per directory)"
+    "--voices-dir",
+    help="Directory with voices (default: $HOME/.local/share/glow-speak/voices)",
 )
 parser.add_argument(
     "--host", default="0.0.0.0", help="Host of HTTP server (default: 0.0.0.0)"
@@ -93,8 +95,6 @@ if args.logfile:
 
 logging.basicConfig(**log_args)  # type: ignore
 _LOGGER.debug(args)
-
-args.tts_dir = Path(args.tts_dir)
 
 # -----------------------------------------------------------------------------
 
@@ -174,7 +174,8 @@ async def text_to_wav(
     async with _TTS_INFO_LOCK:
         maybe_tts = _TTS_INFO.get(voice)
         if maybe_tts is None:
-            voice_dir = helpers.safe_join(args.tts_dir, voice)
+            voice_dir = find_voice(voice, voices_dir=args.voices_dir)
+            assert voice_dir is not None, f"Voice not found: {voice}"
             _LOGGER.debug("Loading TTS model from %s", voice_dir)
 
             tts_model = await _LOOP.run_in_executor(
@@ -401,26 +402,26 @@ async def text_to_wav(
 
 def get_voices() -> typing.Dict[str, str]:
     """Get dict of voice names/descriptions"""
-    voices: typing.Dict[str, str] = {}
+    voice_descriptions: typing.Dict[str, str] = {}
 
-    for maybe_voice_dir in args.tts_dir.iterdir():
-        if (not maybe_voice_dir.is_dir()) or (
-            not (maybe_voice_dir / "generator.onnx").is_file()
-        ):
-            # Not a voice directory
+    voices = set(LANG_VOICES.values())
+    voices.update(OTHER_VOICES)
+
+    for voice in voices:
+        voice_dir = find_voice(voice, voices_dir=args.voices_dir)
+        if voice_dir is None:
             continue
 
-        voice_name = maybe_voice_dir.name
         description = ""
 
         # Load description, if available
-        description_path = maybe_voice_dir / "DESCRIPTION"
+        description_path = voice_dir / "DESCRIPTION"
         if description_path.is_file():
             description = description_path.read_text().strip()
 
-        voices[voice_name] = description
+        voice_descriptions[voice] = description
 
-    return voices
+    return voice_descriptions
 
 
 # -----------------------------------------------------------------------------

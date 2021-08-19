@@ -108,7 +108,7 @@ def main():
 
     # -------------------------------------------------------------------------
 
-    from .download import find_voice
+    from .download import find_voice, list_voices
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -435,27 +435,6 @@ def main():
 
 # -----------------------------------------------------------------------------
 
-
-def list_voices(voices_dir: typing.Optional[typing.Union[str, Path]] = None):
-    """List available voices"""
-    from .download import LANG_VOICES, OTHER_VOICES, find_voice
-
-    downloaded = "[downloaded]"
-    empty = "(missing)   "
-
-    voices = set(LANG_VOICES.values())
-    voices.update(OTHER_VOICES)
-
-    for voice in sorted(voices):
-        maybe_voice_dir = find_voice(voice, voices_dir=voices_dir)
-
-        if maybe_voice_dir is None:
-            print(empty, voice, sep="\t")
-        else:
-            print(downloaded, voice, sep="\t")
-
-
-# -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
     main()
