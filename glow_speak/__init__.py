@@ -3,7 +3,6 @@ import io
 import logging
 import typing
 import wave
-from enum import Enum
 from pathlib import Path
 
 import numpy as np
@@ -21,12 +20,12 @@ from .audio import (
     inverse,
     transform,
 )
-
-PAD = "_"
+from .const import PAD, VocoderQuality
 
 _DIR = Path(__file__).parent
-_VOCODER_DIR = _DIR / "vocoders"
 _LOGGER = logging.getLogger("glow-speak")
+
+_VOCODER_DIR = _DIR / "vocoders"
 
 # -----------------------------------------------------------------------------
 
@@ -193,12 +192,6 @@ def init_denoiser(vocoder_model, mel_channels: int = 80) -> np.ndarray:
 
 
 # -----------------------------------------------------------------------------
-
-
-class VocoderQuality(str, Enum):
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
 
 
 # quality -> vocoder name

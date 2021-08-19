@@ -14,23 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
 
-import numpy as np
-import onnxruntime
-
-from espeak_phonemizer import Phonemizer
-from phonemes2ids import load_phoneme_ids, load_phoneme_map
-
-from . import (
-    PhonemeGuesser,
-    VocoderQuality,
-    audio_to_wav,
-    get_vocoder_dir,
-    ids_to_mels,
-    init_denoiser,
-    mels_to_audio,
-    text_to_ids,
-)
-from .download import LANG_VOICES, OTHER_VOICES, find_voice
+from .const import VocoderQuality
 
 _LOGGER = logging.getLogger("glow_speak")
 
@@ -121,6 +105,10 @@ def main():
     )
     args = parser.parse_args()
 
+    # -------------------------------------------------------------------------
+
+    from .download import find_voice
+
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -155,6 +143,8 @@ def main():
         args.vocoder = Path(args.vocoder)
     else:
         # Use built-in hifi-gan
+        from . import get_vocoder_dir
+
         args.vocoder = get_vocoder_dir(args.quality)
 
     if args.output_dir:
@@ -191,7 +181,6 @@ def main():
 
                     _LOGGER.debug(play_command)
                     play_proc = subprocess.Popen(play_command, stdin=subprocess.PIPE)
-                    # subprocess.run(play_command, input=wav_bytes, check=True)
                     play_proc.stdin.write(wav_bytes)
                     play_proc.stdin.flush()
                     play_proc.wait()
@@ -204,6 +193,21 @@ def main():
         play_thread.start()
 
     # -------------------------------------------------------------------------
+
+    import numpy as np
+    import onnxruntime
+
+    from espeak_phonemizer import Phonemizer
+    from phonemes2ids import load_phoneme_ids, load_phoneme_map
+
+    from . import (
+        PhonemeGuesser,
+        audio_to_wav,
+        ids_to_mels,
+        init_denoiser,
+        mels_to_audio,
+        text_to_ids,
+    )
 
     # Load TTS/vocoder models in parallel
     sess_options = onnxruntime.SessionOptions()
@@ -433,6 +437,8 @@ def main():
 
 def list_voices(voices_dir: typing.Optional[typing.Union[str, Path]] = None):
     """List available voices"""
+    from .download import LANG_VOICES, OTHER_VOICES, find_voice
+
     downloaded = "[downloaded]"
     empty = " " * len(downloaded)
 

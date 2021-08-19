@@ -30,7 +30,7 @@ setuptools.setup(
     url="https://github.com/rhasspy/glow-speak",
     packages=setuptools.find_packages(),
     package_data={"glow_speak": ["VERSION", "py.typed"]},
-    entry_points={"console_scripts": ["glow_speak = glow_speak.__main__:main"]},
+    entry_points={"console_scripts": ["glow-speak = glow_speak.__main__:main"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
