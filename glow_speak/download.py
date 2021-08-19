@@ -60,17 +60,19 @@ def find_voice(
             continue
 
         maybe_voice_dir = os.path.join(os.path.expandvars(dir_path), voice)
+        maybe_generator = os.path.join(maybe_voice_dir, "generator.onnx")
         _LOGGER.debug("Looking for voice in %s", maybe_voice_dir)
 
-        if os.path.isdir(maybe_voice_dir):
+        if os.path.isfile(maybe_generator):
             return Path(maybe_voice_dir)
 
         # Try with resolved name
         if resolved_voice is not None:
             maybe_voice_dir = os.path.join(os.path.expandvars(dir_path), resolved_voice)
+            maybe_generator = os.path.join(maybe_voice_dir, "generator.onnx")
             _LOGGER.debug("Looking for voice in %s", maybe_voice_dir)
 
-            if os.path.isdir(maybe_voice_dir):
+            if os.path.isfile(maybe_generator):
                 return Path(maybe_voice_dir)
 
     return None
