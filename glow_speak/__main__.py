@@ -30,9 +30,9 @@ from . import (
     mels_to_audio,
     text_to_ids,
 )
+from .download import LANG_VOICES, OTHER_VOICES, find_voice
 
 _LOGGER = logging.getLogger("glow_speak")
-
 
 # -----------------------------------------------------------------------------
 
@@ -42,12 +42,17 @@ def main():
     parser.add_argument(
         "text", nargs="*", help="Text to convert to speech (default: stdin)"
     )
-    parser.add_argument("-v", "--voice", required=False, help="espeak-ng voice")
-    parser.add_argument("--tts", required=True, help="Path to TTS model directory")
+    parser.add_argument("-v", "--voice", help="Name of voice or language")
+    parser.add_argument("--voices", action="store_true", help="List voices and exit")
+    parser.add_argument(
+        "--voices-dir",
+        help="Directory with voices (default: $HOME/.local/share/glow-speak/voices)",
+    )
+    parser.add_argument("--tts", help="Path to TTS model directory")
     parser.add_argument(
         "--quality",
         default="high",
-        choices=[v for v in VocoderQuality],
+        choices=list(VocoderQuality),
         help="Quality of vocoder (default: high)",
     )
     parser.add_argument(
@@ -84,7 +89,14 @@ def main():
         help="Process text only after encountering a blank line",
     )
     parser.add_argument(
-        "--output-file", help="Write entire WAV output to a file (default: stdout)"
+        "-o",
+        "--output-file",
+        help="Write entire WAV output to a file (use '-' for stdout)",
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Write entire WAV output to stdout (alias of --output-file -)",
     )
     parser.add_argument(
         "--output-dir",
@@ -101,6 +113,10 @@ def main():
         help="Input 'text' is actually whitespace-separated phoneme ids (see phonemes.txt)",
     )
     parser.add_argument(
+        "--text-language",
+        help="eSpeak voice for input text (if different than voice language)",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Print DEBUG messages to the console"
     )
     args = parser.parse_args()
@@ -112,7 +128,27 @@ def main():
 
     _LOGGER.debug(args)
 
-    args.tts = Path(args.tts)
+    if args.voices:
+        # List voices and exit
+        list_voices(args.voices_dir)
+        return
+
+    if args.output_file == "-":
+        args.stdout = True
+        args.output_file = None
+
+    if args.tts:
+        # Directory with voice (must have generator.onnx)
+        args.tts = Path(args.tts)
+    else:
+        if not args.voice:
+            # List voices and exit
+            print("Missing --voice", file=sys.stderr)
+            list_voices(args.voices_dir)
+            return
+
+        args.tts = find_voice(args.voice, voices_dir=args.voices_dir)
+        assert args.tts is not None, f"Voice not found: {args.voice}"
 
     if args.vocoder:
         # User-supplied vocoder path (must have generator.onnx)
@@ -136,25 +172,35 @@ def main():
 
     wav_queue = None
     play_thread = None
+    play_proc: typing.Optional[subprocess.Popen] = None
+    play_running = True
 
     if args.play:
         # Execute external command to play audio in a separate thread (from a queue)
         play_command = shlex.split(args.play)
         wav_queue = Queue(maxsize=args.queue_lines)
 
-        def play_proc():
-            while True:
+        def play_target():
+            nonlocal play_proc
+
+            while play_running:
                 try:
                     wav_bytes = wav_queue.get()
-                    if wav_bytes is None:
+                    if (wav_bytes is None) or (not play_running):
                         break
 
                     _LOGGER.debug(play_command)
-                    subprocess.run(play_command, input=wav_bytes, check=True)
+                    play_proc = subprocess.Popen(play_command, stdin=subprocess.PIPE)
+                    # subprocess.run(play_command, input=wav_bytes, check=True)
+                    play_proc.stdin.write(wav_bytes)
+                    play_proc.stdin.flush()
+                    play_proc.wait()
+
+                    play_proc = None
                 except Exception:
                     _LOGGER.exception("play_proc")
 
-        play_thread = threading.Thread(target=play_proc, daemon=True)
+        play_thread = threading.Thread(target=play_target, daemon=True)
         play_thread.start()
 
     # -------------------------------------------------------------------------
@@ -177,12 +223,14 @@ def main():
     tts = tts_future.result()
     _LOGGER.debug("Loaded TTS model from %s", args.tts)
 
-    if not args.voice:
+    if not args.text_language:
         lang_path = args.tts / "LANGUAGE"
         assert (
             lang_path.is_file()
         ), "Missing --voice or LANGUAGE file in voice directory"
-        args.voice = lang_path.read_text().strip()
+
+        args.text_language = lang_path.read_text().strip()
+        _LOGGER.debug("Text language: %s", args.text_language)
 
     vocoder = vocoder_future.result()
     _LOGGER.debug("Loaded vocoder model from %s", args.vocoder)
@@ -215,7 +263,7 @@ def main():
     phoneme_guesser = PhonemeGuesser(phoneme_to_id, phoneme_map)
 
     # Initialize eSpeak phonemizer
-    phonemizer = Phonemizer(default_voice=args.voice)
+    phonemizer = Phonemizer(default_voice=args.text_language)
 
     # -------------------------------------------------------------------------
 
@@ -339,14 +387,23 @@ def main():
                 output_path = args.output_dir / output_name
                 output_path.write_bytes(wav_bytes)
                 _LOGGER.debug("Write %s byte(s) to %s", len(wav_bytes), output_path)
-            else:
+            elif args.output_file or args.stdout:
                 # Combine into single WAV for output later
                 audios.append(audio)
     except KeyboardInterrupt:
         pass
     finally:
+        play_running = False
+
         if wav_queue is not None:
+            # Drain queue
+            while not wav_queue.empty():
+                wav_queue.get()
+
             wav_queue.put(None)
+
+        if play_proc is not None:
+            play_proc.terminate()
 
         if play_thread is not None:
             play_thread.join()
@@ -361,12 +418,34 @@ def main():
             )
 
             if args.output_file:
+                # Write to WAV file
                 args.output_file.write_bytes(wav_bytes)
                 _LOGGER.debug(
                     "Wrote %s byte(s) to %s", len(wav_bytes), args.output_file
                 )
-            else:
+            elif args.stdout:
+                # Write to stdout
                 sys.stdout.buffer.write(wav_bytes)
+
+
+# -----------------------------------------------------------------------------
+
+
+def list_voices(voices_dir: typing.Optional[typing.Union[str, Path]] = None):
+    """List available voices"""
+    downloaded = "[downloaded]"
+    empty = " " * len(downloaded)
+
+    voices = set(LANG_VOICES.values())
+    voices.update(OTHER_VOICES)
+
+    for voice in sorted(voices):
+        maybe_voice_dir = find_voice(voice, voices_dir=voices_dir)
+
+        if maybe_voice_dir is None:
+            print(empty, voice, sep="\t")
+        else:
+            print(downloaded, voice, sep="\t")
 
 
 # -----------------------------------------------------------------------------
