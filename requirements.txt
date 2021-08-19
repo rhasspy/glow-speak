@@ -5,3 +5,4 @@ phonemes2ids~=1.0.0
 quart~=0.15.0
 quart-cors~=0.5.0
 swagger-ui-py~=0.3.0
+tqdm~=4.48.2
