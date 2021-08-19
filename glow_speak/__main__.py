@@ -34,6 +34,7 @@ def main():
     )
     parser.add_argument("--tts", help="Path to TTS model directory")
     parser.add_argument(
+        "-q",
         "--quality",
         default="high",
         choices=list(VocoderQuality),
@@ -440,7 +441,7 @@ def list_voices(voices_dir: typing.Optional[typing.Union[str, Path]] = None):
     from .download import LANG_VOICES, OTHER_VOICES, find_voice
 
     downloaded = "[downloaded]"
-    empty = " " * len(downloaded)
+    empty = "(missing)   "
 
     voices = set(LANG_VOICES.values())
     voices.update(OTHER_VOICES)
