@@ -10,7 +10,7 @@ if [[ -d "${venv}" ]]; then
     source "${venv}/bin/activate"
 fi
 
-python_files=("${src_dir}/glow_speak/"*.py)
+python_files=("${src_dir}/glow_speak/"*.py "${src_dir}/"*.py)
 
 export PYTHONPATH="${src_dir}"
 

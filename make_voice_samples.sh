@@ -13,9 +13,6 @@ mkdir -p "${output_dir}"
 # Directory of *this* script
 this_dir="$( cd "$( dirname "$0" )" && pwd )"
 
-# Avoid bash built-in "time" command that doesn't allow output to a file
-time_prog="$(which time)"
-
 # -----------------------------------------------------------------------------
 
 # Pangrams from: http://clagnut.com/blog/2380/
@@ -53,13 +50,11 @@ function test_model {
     # Write WAV and two text files, one with timing info and the other with stdout/stderr
     sample_prefix="${model_name}"
     sample_wav="${output_dir}/${sample_prefix}.wav"
-    sample_time="${output_dir}/${sample_prefix}_time.txt"
     sample_error="${output_dir}/${sample_prefix}_output.txt"
 
     # Time TTS command
     echo "${model_path}"
-    "${time_prog}" "--output=${sample_time}" -- \
-                   "${this_dir}/bin/glow-speak" --tts "${model_path}" --quality high --output-file "${sample_wav}" -- "${pangram}" 2>&1 \
+    "${this_dir}/bin/glow-speak" --tts "${model_path}" --quality high --output-file "${sample_wav}" -- "${pangram}" 2>&1 \
         | tee "${sample_error}"
 
 }

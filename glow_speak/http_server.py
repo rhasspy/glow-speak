@@ -35,9 +35,7 @@ from quart import (
 from swagger_ui import quart_api_doc
 
 from espeak_phonemizer import Phonemizer
-from phonemes2ids import load_phoneme_ids, load_phoneme_map
-
-from . import (
+from glow_speak import (
     PhonemeGuesser,
     VocoderQuality,
     get_vocoder_dir,
@@ -46,7 +44,8 @@ from . import (
     mels_to_audio,
     text_to_ids,
 )
-from .download import LANG_VOICES, OTHER_VOICES, find_voice
+from glow_speak.download import LANG_VOICES, OTHER_VOICES, find_voice
+from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
 _MISSING = object()
 
@@ -194,14 +193,16 @@ async def text_to_wav(
                 model_language = lang_path.read_text().strip()
 
             # Load phoneme -> id map
-            with open(voice_dir / "phonemes.txt") as phonemes_file:
+            with open(
+                voice_dir / "phonemes.txt", "r", encoding="utf-8"
+            ) as phonemes_file:
                 phoneme_to_id = load_phoneme_ids(phonemes_file)
 
             # Load phoneme -> phoneme map
             phoneme_map = None
             phoneme_map_path = voice_dir / "phoneme_map.txt"
             if phoneme_map_path.is_file():
-                with open(phoneme_map_path) as phoneme_map_file:
+                with open(phoneme_map_path, "r", encoding="utf-8") as phoneme_map_file:
                     phoneme_map = load_phoneme_map(phoneme_map_file)
 
             phoneme_guesser = PhonemeGuesser(phoneme_to_id, phoneme_map)
@@ -273,7 +274,9 @@ async def text_to_wav(
             bias_spec = None
 
             # Load audio config
-            with open(vocoder_dir / "config.json") as vocoder_config_file:
+            with open(
+                vocoder_dir / "config.json", "r", encoding="utf-8"
+            ) as vocoder_config_file:
                 vocoder_config = json.load(vocoder_config_file)
                 vocoder_audio = vocoder_config["audio"]
                 num_mels = int(vocoder_audio["num_mels"])
@@ -490,7 +493,7 @@ async def api_phonemes():
     assert voice, "No voice provided"
 
     voice_dir = helpers.safe_join(args.tts_dir, voice)
-    with open(voice_dir / "phonemes.txt", "r") as phonemes_file:
+    with open(voice_dir / "phonemes.txt", "r", encoding="utf-8") as phonemes_file:
         phoneme_ids = load_phoneme_ids(phonemes_file)
 
     return jsonify(phoneme_ids)

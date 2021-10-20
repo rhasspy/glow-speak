@@ -41,6 +41,10 @@ def find_voice(
     voice: str, voices_dir: typing.Optional[typing.Union[str, Path]] = None
 ) -> typing.Optional[Path]:
     """Find voice by name"""
+    maybe_generator = os.path.join(voice, "generator.onnx")
+    if os.path.isfile(maybe_generator):
+        return Path(voice)
+
     resolved_voice = LANG_VOICES.get(voice)
 
     # 1. voices_dir parameter
@@ -92,9 +96,9 @@ def download_voice(voice: str, voices_dir: typing.Union[str, Path], link: str) -
     voices_dir = Path(voices_dir)
     voices_dir.mkdir(parents=True, exist_ok=True)
 
-    response = urllib.request.urlopen(link)
-
-    with tempfile.NamedTemporaryFile(mode="wb+", suffix=".tar.gz") as temp_file:
+    with urllib.request.urlopen(link) as response, tempfile.NamedTemporaryFile(
+        mode="wb+", suffix=".tar.gz"
+    ) as temp_file:
         with tqdm(
             unit="B",
             unit_scale=True,

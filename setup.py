@@ -1,5 +1,4 @@
 """Setup file for glow_speak"""
-import os
 from pathlib import Path
 
 import setuptools
@@ -16,7 +15,7 @@ if readme_path.is_file():
     long_description = readme_path.read_text()
 
 version_path = module_dir / "VERSION"
-with open(version_path, "r") as version_file:
+with open(version_path, "r", encoding="utf-8") as version_file:
     version = version_file.read().strip()
 
 # -----------------------------------------------------------------------------
@@ -30,7 +29,15 @@ setuptools.setup(
     url="https://github.com/rhasspy/glow-speak",
     packages=setuptools.find_packages(),
     package_data={"glow_speak": ["VERSION", "py.typed"]},
-    entry_points={"console_scripts": ["glow-speak = glow_speak.__main__:main"]},
+    entry_points={
+        "console_scripts": [
+            "glow-speak = glow_speak.__main__:main",
+            "glow-speak-download = glow_speak.download:main",
+            "glow-speak-http-server = glow_speak.http_server:main",
+            "glow-speak-socket-server = glow_speak.socket_server:main",
+            "glow-speak-socket-client = glow_speak.socket_client:main",
+        ]
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",

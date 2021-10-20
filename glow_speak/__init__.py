@@ -8,11 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from espeak_phonemizer import Phonemizer
-from gruut_ipa import Phoneme, Phonemes
-from gruut_ipa.accent import guess_phonemes
-from phonemes2ids import STRESS, phonemes2ids
-
-from .audio import (
+from glow_speak.audio import (
     audio_float_to_int16,
     db_to_amp,
     denormalize,
@@ -20,12 +16,17 @@ from .audio import (
     inverse,
     transform,
 )
-from .const import PAD, VocoderQuality
+from glow_speak.const import PAD, VocoderQuality
+from gruut_ipa import Phoneme, Phonemes
+from gruut_ipa.accent import guess_phonemes
+from phonemes2ids import STRESS, phonemes2ids
 
 _DIR = Path(__file__).parent
 _LOGGER = logging.getLogger("glow-speak")
 
 _VOCODER_DIR = _DIR / "vocoders"
+
+__version__ = (_DIR / "VERSION").read_text().strip()
 
 # -----------------------------------------------------------------------------
 
@@ -82,6 +83,8 @@ class PhonemeGuesser:
 
 # -----------------------------------------------------------------------------
 
+STRESS_AND_PUNCTUATION = set.union(STRESS, {".", ","})
+
 
 def text_to_ids(
     text: str,
@@ -104,7 +107,6 @@ def text_to_ids(
     _LOGGER.debug(ipa_str)
 
     word_phonemes = [word.split(phoneme_separator) for word in ipa_str.split()]
-
     text_ids = phonemes2ids(
         word_phonemes,
         phoneme_to_id,
@@ -113,7 +115,7 @@ def text_to_ids(
         eos="$",
         blank="#",
         simple_punctuation=True,
-        separate=STRESS,
+        separate=STRESS_AND_PUNCTUATION,
         phoneme_map=phoneme_map,
         missing_func=missing_func,
     )

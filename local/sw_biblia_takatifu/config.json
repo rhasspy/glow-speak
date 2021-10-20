@@ -1,7 +1,7 @@
 {
     "seed": 1234,
     "epochs": 10000,
-    "learning_rate": 1.0,
+    "learning_rate": 0.000493231942632661,
     "betas": [
         0.9,
         0.98
@@ -62,5 +62,5 @@
         "n_frames_per_step": 1
     },
     "version": 1,
-    "git_commit": ""
+    "git_commit": "6d3c2a4"
 }

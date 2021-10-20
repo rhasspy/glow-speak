@@ -24,9 +24,7 @@ from pathlib import Path
 import onnxruntime
 
 from espeak_phonemizer import Phonemizer
-from phonemes2ids import load_phoneme_ids, load_phoneme_map
-
-from . import (
+from glow_speak import (
     PhonemeGuesser,
     get_vocoder_dir,
     ids_to_mels,
@@ -34,8 +32,9 @@ from . import (
     mels_to_audio,
     text_to_ids,
 )
-from .const import VocoderQuality
-from .download import find_voice, list_voices
+from glow_speak.const import VocoderQuality
+from glow_speak.download import find_voice, list_voices
+from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
 _LOGGER = logging.getLogger("glow_speak.socket_server")
 
@@ -157,7 +156,9 @@ def main():
 
     # Load audio settings and initialize denoiser
     bias_spec = None
-    with open(args.vocoder / "config.json") as vocoder_config_file:
+    with open(
+        args.vocoder / "config.json", "r", encoding="utf-8"
+    ) as vocoder_config_file:
         vocoder_config = json.load(vocoder_config_file)
         vocoder_audio = vocoder_config["audio"]
         num_mels = int(vocoder_audio["num_mels"])
@@ -170,14 +171,14 @@ def main():
             bias_spec = init_denoiser(vocoder, num_mels)
 
     # Load phoneme -> id map
-    with open(args.tts / "phonemes.txt") as phonemes_file:
+    with open(args.tts / "phonemes.txt", "r", encoding="utf-8") as phonemes_file:
         phoneme_to_id = load_phoneme_ids(phonemes_file)
 
     # Load phoneme -> phoneme map
     phoneme_map = None
     phoneme_map_path = args.tts / "phoneme_map.txt"
     if phoneme_map_path.is_file():
-        with open(phoneme_map_path) as phoneme_map_file:
+        with open(phoneme_map_path, "r", encoding="utf-8") as phoneme_map_file:
             phoneme_map = load_phoneme_map(phoneme_map_file)
 
     phoneme_guesser = PhonemeGuesser(phoneme_to_id, phoneme_map)

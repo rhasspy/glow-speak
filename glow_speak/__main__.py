@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Queue
 
-from .const import VocoderQuality
+from glow_speak.const import VocoderQuality
 
 _LOGGER = logging.getLogger("glow_speak")
 
@@ -104,11 +104,22 @@ def main():
     parser.add_argument(
         "--debug", action="store_true", help="Print DEBUG messages to the console"
     )
+    parser.add_argument(
+        "--version", action="store_true", help="Print version to console and exit"
+    )
     args = parser.parse_args()
 
     # -------------------------------------------------------------------------
 
-    from .download import find_voice, list_voices
+    if args.version:
+        from glow_speak import __version__
+
+        print(__version__)
+        return
+
+    # -------------------------------------------------------------------------
+
+    from glow_speak.download import find_voice, list_voices
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -144,7 +155,7 @@ def main():
         args.vocoder = Path(args.vocoder)
     else:
         # Use built-in hifi-gan
-        from . import get_vocoder_dir
+        from glow_speak import get_vocoder_dir
 
         args.vocoder = get_vocoder_dir(args.quality)
 
@@ -181,10 +192,12 @@ def main():
                         break
 
                     _LOGGER.debug(play_command)
-                    play_proc = subprocess.Popen(play_command, stdin=subprocess.PIPE)
-                    play_proc.stdin.write(wav_bytes)
-                    play_proc.stdin.flush()
-                    play_proc.wait()
+                    with subprocess.Popen(
+                        play_command, stdin=subprocess.PIPE
+                    ) as play_proc:
+                        play_proc.stdin.write(wav_bytes)
+                        play_proc.stdin.flush()
+                        play_proc.wait()
 
                     play_proc = None
                 except Exception:
@@ -197,12 +210,10 @@ def main():
 
     import numpy as np
     import onnxruntime
-
     from espeak_phonemizer import Phonemizer
     from phonemes2ids import load_phoneme_ids, load_phoneme_map
 
-    from . import (
-        PhonemeGuesser,
+    from glow_speak import (
         audio_to_wav,
         ids_to_mels,
         init_denoiser,
@@ -242,7 +253,7 @@ def main():
 
     # Load audio settings and initialize denoiser
     bias_spec = None
-    with open(args.vocoder / "config.json") as vocoder_config_file:
+    with open(args.vocoder / "config.json", encoding="utf-8") as vocoder_config_file:
         vocoder_config = json.load(vocoder_config_file)
         vocoder_audio = vocoder_config["audio"]
         num_mels = int(vocoder_audio["num_mels"])
@@ -255,17 +266,15 @@ def main():
             bias_spec = init_denoiser(vocoder, num_mels)
 
     # Load phoneme -> id map
-    with open(args.tts / "phonemes.txt") as phonemes_file:
+    with open(args.tts / "phonemes.txt", encoding="utf-8") as phonemes_file:
         phoneme_to_id = load_phoneme_ids(phonemes_file)
 
     # Load phoneme -> phoneme map
     phoneme_map = None
     phoneme_map_path = args.tts / "phoneme_map.txt"
     if phoneme_map_path.is_file():
-        with open(phoneme_map_path) as phoneme_map_file:
+        with open(phoneme_map_path, encoding="utf-8") as phoneme_map_file:
             phoneme_map = load_phoneme_map(phoneme_map_file)
-
-    phoneme_guesser = PhonemeGuesser(phoneme_to_id, phoneme_map)
 
     # Initialize eSpeak phonemizer
     phonemizer = Phonemizer(default_voice=args.text_language)
@@ -328,7 +337,6 @@ def main():
                     phonemizer=phonemizer,
                     phoneme_to_id=phoneme_to_id,
                     phoneme_map=phoneme_map,
-                    missing_func=phoneme_guesser.guess_ids,
                 )
 
             mels_start_time = time.perf_counter()
